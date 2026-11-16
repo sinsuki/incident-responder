@@ -4,7 +4,9 @@ Milestone 1 is a simulated checkout path: gateway, orders, inventory, and paymen
 
 Milestone 2 is the log forensics agent. Given one run directory, it names the service and the onset of an error-rate or latency spike, and every claim cites a real log line plus a trace or span id.
 
-Milestone 3 is the code archaeologist. It takes that report and the sample service history, ranks the commits that touch the implicated service, and names the one most likely to have caused the incident. Every claim cites a commit that is in the history, and a file and line that exist at that commit. A runbook agent and the final RCA report are not in this tree.
+Milestone 3 is the code archaeologist. It takes that report and the sample service history, ranks the commits that touch the implicated service, and names the one most likely to have caused the incident. Every claim cites a commit that is in the history, and a file and line that exist at that commit.
+
+Milestone 4 is the runbook agent. It takes the forensics report and the archaeologist report and chooses ordered mitigation steps from `runbooks/`. Every step cites the runbook section it came from and the upstream evidence that triggered it. The final RCA report is not in this tree.
 
 ## Run
 
@@ -59,6 +61,40 @@ The command checks every citation and every ranked row against the history. It e
 Set `CODE_ARCHAEOLOGIST_LLM=off` (the default) to keep the deterministic summary. `CODE_ARCHAEOLOGIST_LLM=openai` sends a short digest of the ranked commits and claims, not the file bodies and not the commit subjects, to an OpenAI-compatible chat endpoint. `OPENAI_API_KEY` is required. `OPENAI_BASE_URL` and `OPENAI_MODEL` override the endpoint and the model (`gpt-4o-mini` by default). Token counts come from the response usage field.
 
 `python -m code_archaeologist.eval` runs all four faults with seeds 1 through 5 (24 requests, 8 of them warmup): simulate, then log forensics, then the archaeologist. Ground truth is read only after both agents return, and the file is wiped before the archaeologist runs. A case scores 1 when the top commit is `deployed_commit`. Top-3 counts a hit when that commit is one of the first three in `ranked`. The command prints both accuracies and exits 1 if any top commit is wrong or a citation does not resolve. It does not call a model unless `CODE_ARCHAEOLOGIST_LLM` is set.
+
+## Runbook
+
+```bash
+python -m incident_sim --fault latency_spike --seed 1 --out runs/latency
+python -m log_forensics runs/latency --out runs/latency/forensics.json
+python -m code_archaeologist runs/latency/forensics.json --out runs/latency/archaeology.json
+python -m runbook runs/latency/forensics.json runs/latency/archaeology.json
+python -m runbook runs/latency
+python -m runbook.eval
+```
+
+`python -m runbook` reads the two reports. A telemetry directory works too: the command runs log forensics and the archaeologist first. It does not read `ground_truth.json`. Runbooks default to `runbooks/`. `--runbooks` points at another directory.
+
+Matching compares the forensics kind with the shape of the line the archaeologist cited. A `*_MS` constant is a duration. A `*_TIMEOUT_MS` constant is a caller deadline, and it is not treated as a duration. An `if` that contains `not` is an inverted check. Any other `NAME = integer` is config. No commit is an unexplained error. The fault name and the commit subject are not inputs. Two payments error-rate incidents therefore take different runbooks: the inverted processor check rolls the file back, and `CURRENCY_SCALE` is put back on that one line.
+
+| Runbook | When it matches | What it does |
+| --- | --- | --- |
+| `rollback-latency` | latency, duration constant | Deploy the parent copy of the implicated file. |
+| `rollback-timeout` | timeout, duration constant | Roll that file back, then set `PAYMENTS_TIMEOUT_MS` to the dependency duration. |
+| `rollback-check` | error rate, inverted `if` | Deploy the parent copy of the implicated file. |
+| `revert-config` | error rate, config constant | Restore that constant to the parent value. Leave the rest of the file. |
+| `raise-timeout` | timeout, caller deadline | Raise the cited deadline to the dependency duration. |
+| `shed-load` | error rate, no commit | Stop new checkouts. No file changes. |
+
+The report is JSON (`schema_version` 1). `matched` is false when no runbook fits, and `steps` is empty. A match names `runbook` and lists `steps` in file order. Each step has `action`, `text`, `target`, and `citations`. A citation is either the runbook file and section, a forensics claim index plus `timestamp_unix_nano`, or an archaeologist claim index plus `commit`. `summary` is prose from those fields. `tokens.input` and `tokens.output` are 0 unless a model rewrote the summary.
+
+The command checks every step. The section has to be a heading of the selected runbook, and it has to be the section for that step. The timestamp has to appear on that forensics claim. The commit has to appear on that archaeologist claim. Rollback and config revert have to cite both the implicated commit and the parent they deploy. A matched report with no steps does not resolve. The command exits 1 when any of those fail.
+
+Set `RUNBOOK_LLM=off` (the default) to keep the deterministic summary. `RUNBOOK_LLM=openai` sends a short digest of the runbook id and each step's action, section, and file. It does not send the runbook prose, the service source, or the telemetry. `OPENAI_API_KEY` is required. `OPENAI_BASE_URL` and `OPENAI_MODEL` override the endpoint and the model (`gpt-4o-mini` by default). Token counts come from the response usage field.
+
+`python -m runbook.eval` runs all four faults with seeds 1 through 5 (24 requests, 8 of them warmup): simulate, log forensics, the archaeologist, then the runbook agent. Ground truth is deleted before the agents run. For each case the eval checks out the implicated commit, applies the steps, and serves the warmup from the parent and the rest from the patched tree. Log forensics runs again. A case scores 1 when that re-run reports no incident and every citation resolves. The command prints the mitigation success rate and exits 1 if any case fails. It does not call a model unless `RUNBOOK_LLM` is set.
+
+`dependency_timeout` matches `rollback-timeout`, not `raise-timeout`, because the cited line is `WORK_MS` on payments. Raising `PAYMENTS_TIMEOUT_MS` on its own leaves payments at 2000ms, so forensics still reports a latency spike. The rollback is the step that removes the fault. The timeout increase is the second step. `shed-load` does not change service code, and these four faults do not select it.
 
 ## Output
 
