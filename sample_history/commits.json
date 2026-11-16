@@ -1,0 +1,47 @@
+[
+  {
+    "branch": "main",
+    "committed_at": "2026-01-06T15:00:00+00:00",
+    "fault": null,
+    "hash": "dfe6c635314e67d64a08811f685b3430fd2ace75",
+    "parent": null,
+    "subject": "add checkout services",
+    "tree": "00-baseline"
+  },
+  {
+    "branch": "latency-spike",
+    "committed_at": "2026-01-08T15:04:00+00:00",
+    "fault": "latency_spike",
+    "hash": "8ea547ce57666546ad6f7159ff904a63dd65c072",
+    "parent": "dfe6c635314e67d64a08811f685b3430fd2ace75",
+    "subject": "rebuild the inventory index on each reserve",
+    "tree": "01-latency"
+  },
+  {
+    "branch": "error-rate-spike",
+    "committed_at": "2026-01-09T16:12:00+00:00",
+    "fault": "error_rate_spike",
+    "hash": "0657ced9abda04ddb5331290ba632619c90cff45",
+    "parent": "dfe6c635314e67d64a08811f685b3430fd2ace75",
+    "subject": "invert the payments retry check",
+    "tree": "02-error-rate"
+  },
+  {
+    "branch": "dependency-timeout",
+    "committed_at": "2026-01-12T11:30:00+00:00",
+    "fault": "dependency_timeout",
+    "hash": "6edf3d7a6239934020ce0e81ad4c62a414ec4afd",
+    "parent": "dfe6c635314e67d64a08811f685b3430fd2ace75",
+    "subject": "wait on a stuck payments connection",
+    "tree": "03-timeout"
+  },
+  {
+    "branch": "bad-deploy",
+    "committed_at": "2026-01-13T18:45:00+00:00",
+    "fault": "bad_deploy",
+    "hash": "4c856a5de08a0eab1f94e9a8763c65ad0c2587ad",
+    "parent": "dfe6c635314e67d64a08811f685b3430fd2ace75",
+    "subject": "scale charge amounts by 100",
+    "tree": "04-bad-deploy"
+  }
+]
