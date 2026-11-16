@@ -1,0 +1,338 @@
+{
+  "commit": "a3edb78641f743638593a6e04e47227d9f2960fe",
+  "incident": true,
+  "kind": "latency",
+  "matched": true,
+  "runbook": "rollback-latency",
+  "runbook_file": "rollback-latency.md",
+  "schema_version": 1,
+  "sections": {
+    "evidence": [
+      {
+        "citations": [
+          {
+            "file": "traces.jsonl",
+            "line": 41,
+            "span_id": "677f6cbdcc22af58",
+            "timestamp_unix_nano": 1768489201376000000,
+            "trace_id": "be6521cc3e2434e37af027bc08d6af57"
+          },
+          {
+            "file": "traces.jsonl",
+            "line": 43,
+            "span_id": "5dfbd3d12c4a3698",
+            "timestamp_unix_nano": 1768489201384000000,
+            "trace_id": "be6521cc3e2434e37af027bc08d6af57"
+          },
+          {
+            "file": "traces.jsonl",
+            "line": 43,
+            "span_id": "5dfbd3d12c4a3698",
+            "timestamp_unix_nano": 1768489202134000000,
+            "trace_id": "be6521cc3e2434e37af027bc08d6af57"
+          },
+          {
+            "file": "logs.jsonl",
+            "line": 43,
+            "span_id": "5dfbd3d12c4a3698",
+            "timestamp_unix_nano": 1768489202134000000,
+            "trace_id": "be6521cc3e2434e37af027bc08d6af57"
+          }
+        ],
+        "text": "Trace be6521cc3e2434e37af027bc08d6af57 starts at 1768489201376000000 on span 677f6cbdcc22af58; span 5dfbd3d12c4a3698 runs from 1768489201384000000 to 1768489202134000000; the log at 1768489202134000000 on span 5dfbd3d12c4a3698 says 'reserved sku-1 qty 1'."
+      },
+      {
+        "citations": [
+          {
+            "file": "traces.jsonl",
+            "line": 38,
+            "span_id": "f0dfb4a5d8a064df",
+            "timestamp_unix_nano": 1768489201212000000,
+            "trace_id": "48beab134da98f1d3099fdf5ab99254a"
+          },
+          {
+            "file": "traces.jsonl",
+            "line": 38,
+            "span_id": "f0dfb4a5d8a064df",
+            "timestamp_unix_nano": 1768489201224000000,
+            "trace_id": "48beab134da98f1d3099fdf5ab99254a"
+          },
+          {
+            "file": "logs.jsonl",
+            "line": 38,
+            "span_id": "f0dfb4a5d8a064df",
+            "timestamp_unix_nano": 1768489201224000000,
+            "trace_id": "48beab134da98f1d3099fdf5ab99254a"
+          }
+        ],
+        "text": "Span f0dfb4a5d8a064df runs from 1768489201212000000 to 1768489201224000000; the log at 1768489201224000000 on span f0dfb4a5d8a064df says 'reserved sku-1 qty 1'."
+      },
+      {
+        "citations": [
+          {
+            "commit": "a3edb78641f743638593a6e04e47227d9f2960fe",
+            "file": "inventory.py",
+            "line": 3,
+            "text": "WORK_MS = 750"
+          }
+        ],
+        "text": "Commit a3edb78641f743638593a6e04e47227d9f2960fe at inventory.py:3 reads `WORK_MS = 750`."
+      },
+      {
+        "citations": [
+          {
+            "commit": "4e173e43679bc21d673eb259d409188bf09ece6f",
+            "file": "inventory.py",
+            "line": 3,
+            "text": "WORK_MS = 12"
+          }
+        ],
+        "text": "Commit 4e173e43679bc21d673eb259d409188bf09ece6f at inventory.py:3 reads `WORK_MS = 12`."
+      }
+    ],
+    "impact": [
+      {
+        "citations": [
+          {
+            "file": "traces.jsonl",
+            "line": 38,
+            "span_id": "f0dfb4a5d8a064df",
+            "timestamp_unix_nano": 1768489201212000000,
+            "trace_id": "48beab134da98f1d3099fdf5ab99254a"
+          },
+          {
+            "file": "traces.jsonl",
+            "line": 38,
+            "span_id": "f0dfb4a5d8a064df",
+            "timestamp_unix_nano": 1768489201224000000,
+            "trace_id": "48beab134da98f1d3099fdf5ab99254a"
+          },
+          {
+            "file": "traces.jsonl",
+            "line": 43,
+            "span_id": "5dfbd3d12c4a3698",
+            "timestamp_unix_nano": 1768489201384000000,
+            "trace_id": "be6521cc3e2434e37af027bc08d6af57"
+          },
+          {
+            "file": "traces.jsonl",
+            "line": 43,
+            "span_id": "5dfbd3d12c4a3698",
+            "timestamp_unix_nano": 1768489202134000000,
+            "trace_id": "be6521cc3e2434e37af027bc08d6af57"
+          }
+        ],
+        "text": "Span f0dfb4a5d8a064df ran from 1768489201212000000 to 1768489201224000000 (12ms), and span 5dfbd3d12c4a3698 ran from 1768489201384000000 to 1768489202134000000 (750ms)."
+      },
+      {
+        "citations": [
+          {
+            "file": "logs.jsonl",
+            "line": 43,
+            "span_id": "5dfbd3d12c4a3698",
+            "timestamp_unix_nano": 1768489202134000000,
+            "trace_id": "be6521cc3e2434e37af027bc08d6af57"
+          }
+        ],
+        "text": "The log at 1768489202134000000 on span 5dfbd3d12c4a3698 says 'reserved sku-1 qty 1'."
+      },
+      {
+        "citations": [
+          {
+            "file": "logs.jsonl",
+            "line": 38,
+            "span_id": "f0dfb4a5d8a064df",
+            "timestamp_unix_nano": 1768489201224000000,
+            "trace_id": "48beab134da98f1d3099fdf5ab99254a"
+          }
+        ],
+        "text": "The log at 1768489201224000000 on span f0dfb4a5d8a064df says 'reserved sku-1 qty 1'."
+      }
+    ],
+    "mitigation": [
+      {
+        "citations": [
+          {
+            "file": "rollback-latency.md",
+            "section": "Roll back the slow commit"
+          },
+          {
+            "file": "logs.jsonl",
+            "line": 43,
+            "span_id": "5dfbd3d12c4a3698",
+            "timestamp_unix_nano": 1768489202134000000,
+            "trace_id": "be6521cc3e2434e37af027bc08d6af57"
+          },
+          {
+            "commit": "a3edb78641f743638593a6e04e47227d9f2960fe",
+            "file": "inventory.py",
+            "line": 3,
+            "text": "WORK_MS = 750"
+          },
+          {
+            "commit": "4e173e43679bc21d673eb259d409188bf09ece6f",
+            "file": "inventory.py",
+            "line": 3,
+            "text": "WORK_MS = 12"
+          }
+        ],
+        "text": "Runbook section Roll back the slow commit cites log timestamp 1768489202134000000, commit a3edb78641f743638593a6e04e47227d9f2960fe, and commit 4e173e43679bc21d673eb259d409188bf09ece6f."
+      }
+    ],
+    "root_cause": [
+      {
+        "citations": [
+          {
+            "commit": "a3edb78641f743638593a6e04e47227d9f2960fe",
+            "file": "inventory.py",
+            "line": 3,
+            "text": "WORK_MS = 750"
+          }
+        ],
+        "text": "Commit a3edb78641f743638593a6e04e47227d9f2960fe sets `WORK_MS = 750` at inventory.py:3."
+      },
+      {
+        "citations": [
+          {
+            "commit": "4e173e43679bc21d673eb259d409188bf09ece6f",
+            "file": "inventory.py",
+            "line": 3,
+            "text": "WORK_MS = 12"
+          }
+        ],
+        "text": "Commit 4e173e43679bc21d673eb259d409188bf09ece6f sets `WORK_MS = 12` at inventory.py:3."
+      }
+    ],
+    "summary": [
+      {
+        "citations": [
+          {
+            "file": "logs.jsonl",
+            "line": 43,
+            "span_id": "5dfbd3d12c4a3698",
+            "timestamp_unix_nano": 1768489202134000000,
+            "trace_id": "be6521cc3e2434e37af027bc08d6af57"
+          }
+        ],
+        "text": "Inventory latency is on trace be6521cc3e2434e37af027bc08d6af57 at log timestamp 1768489202134000000."
+      },
+      {
+        "citations": [
+          {
+            "commit": "a3edb78641f743638593a6e04e47227d9f2960fe",
+            "file": "inventory.py",
+            "line": 3,
+            "text": "WORK_MS = 750"
+          }
+        ],
+        "text": "The implicated line is inventory.py:3 in commit a3edb78641f743638593a6e04e47227d9f2960fe."
+      },
+      {
+        "citations": [
+          {
+            "file": "rollback-latency.md",
+            "section": "Roll back the slow commit"
+          }
+        ],
+        "text": "Mitigation starts with the runbook section Roll back the slow commit."
+      }
+    ],
+    "timeline": [
+      {
+        "citations": [
+          {
+            "file": "logs.jsonl",
+            "line": 38,
+            "span_id": "f0dfb4a5d8a064df",
+            "timestamp_unix_nano": 1768489201224000000,
+            "trace_id": "48beab134da98f1d3099fdf5ab99254a"
+          }
+        ],
+        "text": "The log on span f0dfb4a5d8a064df is at 1768489201224000000."
+      },
+      {
+        "citations": [
+          {
+            "file": "traces.jsonl",
+            "line": 41,
+            "span_id": "677f6cbdcc22af58",
+            "timestamp_unix_nano": 1768489201376000000,
+            "trace_id": "be6521cc3e2434e37af027bc08d6af57"
+          }
+        ],
+        "text": "Trace be6521cc3e2434e37af027bc08d6af57 starts at 1768489201376000000 on span 677f6cbdcc22af58."
+      },
+      {
+        "citations": [
+          {
+            "file": "logs.jsonl",
+            "line": 43,
+            "span_id": "5dfbd3d12c4a3698",
+            "timestamp_unix_nano": 1768489202134000000,
+            "trace_id": "be6521cc3e2434e37af027bc08d6af57"
+          }
+        ],
+        "text": "The log on span 5dfbd3d12c4a3698 is at 1768489202134000000."
+      }
+    ]
+  },
+  "service": "inventory",
+  "started_at_unix_nano": 1768489201376000000,
+  "steps": [
+    {
+      "action": "rollback",
+      "citations": [
+        {
+          "file": "rollback-latency.md",
+          "section": "Roll back the slow commit",
+          "type": "runbook"
+        },
+        {
+          "claim": 0,
+          "timestamp_unix_nano": 1768489202134000000,
+          "type": "forensics"
+        },
+        {
+          "claim": 0,
+          "commit": "a3edb78641f743638593a6e04e47227d9f2960fe",
+          "type": "archaeologist"
+        },
+        {
+          "claim": 1,
+          "commit": "4e173e43679bc21d673eb259d409188bf09ece6f",
+          "type": "archaeologist"
+        }
+      ],
+      "order": 1,
+      "section": "Roll back the slow commit",
+      "target": {
+        "commit": "a3edb78641f743638593a6e04e47227d9f2960fe",
+        "file": "inventory.py",
+        "parent": "4e173e43679bc21d673eb259d409188bf09ece6f"
+      },
+      "text": "Deploy `inventory.py` from parent `4e173e43679bc21d673eb259d409188bf09ece6f` in place of `a3edb78641f743638593a6e04e47227d9f2960fe`. The line `WORK_MS = 750` moved `inventory` from `12`ms to `750`ms. The parent line is `WORK_MS = 12`. The onset log is at `1768489202134000000`."
+    }
+  ],
+  "tokens": {
+    "archaeologist": {
+      "input": 0,
+      "output": 0
+    },
+    "forensics": {
+      "input": 0,
+      "output": 0
+    },
+    "orchestrator": {
+      "input": 0,
+      "output": 0
+    },
+    "runbook": {
+      "input": 0,
+      "output": 0
+    },
+    "total": {
+      "input": 0,
+      "output": 0
+    }
+  }
+}
