@@ -2,7 +2,7 @@
 
 WORK_MS = 750
 
-CATALOG = {"sku-1": 100, "sku-2": 40}
+CATALOG = {"sku-1": 100, "sku-2": 40, "sku-3": 25}
 
 
 def reserve(sku, qty):
@@ -19,3 +19,7 @@ def _rebuild_catalog_index():
     for sku, count in CATALOG.items():
         index[sku] = count
     return index
+
+
+def sku_known(sku):
+    return sku in CATALOG

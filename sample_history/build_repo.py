@@ -1,7 +1,10 @@
 """Build the sample service history as a git bundle.
 
-Each fault is a branch whose parent is the healthy baseline. Author, committer,
-dates, and messages are fixed so the commit hashes do not change between machines.
+Main is a healthy line of unrelated edits. Each fault is a branch off the
+main tip, plus one later commit that touches the same service and leaves
+the fault line alone. Author, committer, dates, and messages are fixed so
+the commit hashes do not change between machines. Fault subjects do not
+name the fault.
 """
 
 from __future__ import annotations
@@ -20,33 +23,49 @@ TREES = HERE / "trees"
 # (tree directory, branch, iso timestamp, subject, fault name or None)
 COMMITS = (
     ("00-baseline", "main", "2026-01-06T15:00:00+00:00", "add checkout services", None),
-    (
-        "01-latency",
-        "latency-spike",
-        "2026-01-08T15:04:00+00:00",
-        "rebuild the inventory index on each reserve",
-        "latency_spike",
-    ),
+    ("05-catalog", "main", "2026-01-07T10:15:00+00:00", "add sku-3 to the catalog", None),
+    ("06-charge-limit", "main", "2026-01-07T14:40:00+00:00", "raise the charge ceiling", None),
+    ("07-orders-note", "main", "2026-01-07T16:20:00+00:00", "note the payments deadline on orders", None),
+    ("08-gateway-note", "main", "2026-01-07T18:05:00+00:00", "note the gateway handoff", None),
+    ("09-receipt", "main", "2026-01-08T09:10:00+00:00", "add a receipt formatter", None),
+    ("10-payments-timing", "main", "2026-01-08T11:25:00+00:00", "give payments a little more time", None),
+    ("01-latency", "latency-spike", "2026-01-08T15:04:00+00:00", "update inventory reservation path", "latency_spike"),
+    ("11-latency-extra", "latency-spike", "2026-01-08T17:45:00+00:00", "add sku-4 for the spring catalog", None),
     (
         "02-error-rate",
         "error-rate-spike",
         "2026-01-09T16:12:00+00:00",
-        "invert the payments retry check",
+        "adjust processor response handling",
         "error_rate_spike",
+    ),
+    (
+        "12-error-extra",
+        "error-rate-spike",
+        "2026-01-09T18:30:00+00:00",
+        "group processor codes for the dashboard",
+        None,
     ),
     (
         "03-timeout",
         "dependency-timeout",
         "2026-01-12T11:30:00+00:00",
-        "wait on a stuck payments connection",
+        "update the payments wait",
         "dependency_timeout",
     ),
     (
-        "04-bad-deploy",
+        "13-timeout-extra",
+        "dependency-timeout",
+        "2026-01-12T15:10:00+00:00",
+        "treat code 14 as a decline",
+        None,
+    ),
+    ("04-bad-deploy", "bad-deploy", "2026-01-13T18:45:00+00:00", "update charge amount handling", "bad_deploy"),
+    (
+        "14-bad-extra",
         "bad-deploy",
-        "2026-01-13T18:45:00+00:00",
-        "scale charge amounts by 100",
-        "bad_deploy",
+        "2026-01-14T10:20:00+00:00",
+        "expose the charge ceiling to the receipt",
+        None,
     ),
 )
 
@@ -96,10 +115,16 @@ def build(repo: Path) -> list[dict]:
     env = git_env()
     run_git(["init", "-b", "main"], repo, env)
     rows = []
-    baseline_hash = None
+    seen = {"main"}
+    current = "main"
     for tree, branch, when, subject, fault in COMMITS:
-        if branch != "main":
-            run_git(["checkout", "-b", branch, "main"], repo, env)
+        if branch != current:
+            if branch in seen:
+                run_git(["checkout", branch], repo, env)
+            else:
+                run_git(["checkout", "-b", branch, "main"], repo, env)
+                seen.add(branch)
+            current = branch
         copy_tree(tree, repo)
         run_git(["add", "-A"], repo, git_env(when))
         run_git(
@@ -109,12 +134,7 @@ def build(repo: Path) -> list[dict]:
             message=subject + "\n",
         )
         sha = run_git(["rev-parse", "HEAD"], repo, env)
-        if fault is None:
-            baseline_hash = sha
-            parent = None
-        else:
-            parent = baseline_hash
-            run_git(["checkout", "main"], repo, env)
+        parent = run_git(["log", "-1", "--pretty=%P"], repo, env) or None
         rows.append(
             {
                 "branch": branch,

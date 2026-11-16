@@ -25,14 +25,17 @@ def test_bundle_matches_manifest(tmp_path):
     ).split()
     assert set(hashes) == {row["hash"] for row in rows}
     branches = subprocess.check_output(["git", "branch", "-a"], cwd=repo, text=True)
+    roots = [row for row in rows if row["parent"] is None]
+    assert len(roots) == 1
+    assert roots[0]["fault"] is None
     for row in rows:
         assert row["branch"] in branches
-        if row["fault"] is None:
-            assert row["parent"] is None
+        if row["parent"] is None:
             continue
         parent = subprocess.check_output(["git", "rev-parse", f"{row['hash']}^"], cwd=repo, text=True).strip()
         assert parent == row["parent"]
-        assert FAULTS[row["fault"]].name == row["fault"]
+        if row["fault"] is not None:
+            assert FAULTS[row["fault"]].name == row["fault"]
 
 
 def test_rebuild_matches_committed_manifest(tmp_path):
@@ -85,3 +88,43 @@ def test_fault_commit_differs_from_its_parent(tmp_path):
             raise AssertionError(name)
         source = (ROOT / "sample_history" / "trees" / row["tree"] / spec.path).read_text(encoding="utf-8")
         assert any(line.strip() == spec.marker for line in source.splitlines())
+
+
+def test_history_has_distractors_on_the_fault_files(tmp_path):
+    """A fault commit is not the only edit to its file, and its subject does not name the fault."""
+    repo = tmp_path / "repo"
+    clone(repo)
+    rows = manifest()
+    main_tip = [row for row in rows if row["branch"] == "main"][-1]
+    giveaways = ("invert", "rebuild", "stuck", "scale", "latency", "timeout")
+    for name, spec in FAULTS.items():
+        row = fault_commit(name)
+        assert row["parent"] == main_tip["hash"]
+        subject = row["subject"].lower()
+        assert name.replace("_", " ") not in subject
+        assert not any(word in subject for word in giveaways)
+        touched = subprocess.check_output(
+            ["git", "log", "--all", "--pretty=%H", "--", spec.path],
+            cwd=repo,
+            text=True,
+        ).split()
+        assert row["hash"] in touched
+        assert len(touched) >= 4
+        children = [other for other in rows if other["parent"] == row["hash"]]
+        assert len(children) == 1
+        child = children[0]
+        assert child["fault"] is None
+        blamed = _blame_marker(repo, child["hash"], spec.path, spec.marker)
+        assert blamed == row["hash"]
+
+
+def _blame_marker(repo, commit, path, marker) -> str:
+    source = subprocess.check_output(["git", "show", f"{commit}:{path}"], cwd=repo, text=True)
+    lines = [index + 1 for index, line in enumerate(source.splitlines()) if line.strip() == marker]
+    assert len(lines) == 1
+    porcelain = subprocess.check_output(
+        ["git", "blame", "-L", f"{lines[0]},{lines[0]}", "--porcelain", commit, "--", path],
+        cwd=repo,
+        text=True,
+    )
+    return porcelain.splitlines()[0].split()[0]

@@ -1,7 +1,7 @@
 [project]
 name = "incident-sim"
 version = "0.1.0"
-description = "Simulated checkout services and a log forensics agent that cites the telemetry."
+description = "Simulated checkout services, a log forensics agent, and a code archaeologist."
 requires-python = ">=3.11"
 dependencies = [
     "opentelemetry-api==1.45.2",
@@ -14,13 +14,14 @@ dev = ["pytest==8.3.4"]
 [project.scripts]
 incident-sim = "incident_sim.cli:main"
 log-forensics = "log_forensics.cli:main"
+code-archaeologist = "code_archaeologist.cli:main"
 
 [build-system]
 requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
-include = ["incident_sim*", "log_forensics*"]
+include = ["incident_sim*", "log_forensics*", "code_archaeologist*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

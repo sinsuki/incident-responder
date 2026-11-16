@@ -9,39 +9,129 @@
     "tree": "00-baseline"
   },
   {
+    "branch": "main",
+    "committed_at": "2026-01-07T10:15:00+00:00",
+    "fault": null,
+    "hash": "383627cc57b69a0706b7713c110687f7eb621336",
+    "parent": "dfe6c635314e67d64a08811f685b3430fd2ace75",
+    "subject": "add sku-3 to the catalog",
+    "tree": "05-catalog"
+  },
+  {
+    "branch": "main",
+    "committed_at": "2026-01-07T14:40:00+00:00",
+    "fault": null,
+    "hash": "48279b24b951793af4c4d27b894cec065347d2bb",
+    "parent": "383627cc57b69a0706b7713c110687f7eb621336",
+    "subject": "raise the charge ceiling",
+    "tree": "06-charge-limit"
+  },
+  {
+    "branch": "main",
+    "committed_at": "2026-01-07T16:20:00+00:00",
+    "fault": null,
+    "hash": "045f4e3c09eaed90a6013c10a5e4d915efdb68cb",
+    "parent": "48279b24b951793af4c4d27b894cec065347d2bb",
+    "subject": "note the payments deadline on orders",
+    "tree": "07-orders-note"
+  },
+  {
+    "branch": "main",
+    "committed_at": "2026-01-07T18:05:00+00:00",
+    "fault": null,
+    "hash": "c5f5c9401cd0c152ed3ef6c34c1c103bcda26f8a",
+    "parent": "045f4e3c09eaed90a6013c10a5e4d915efdb68cb",
+    "subject": "note the gateway handoff",
+    "tree": "08-gateway-note"
+  },
+  {
+    "branch": "main",
+    "committed_at": "2026-01-08T09:10:00+00:00",
+    "fault": null,
+    "hash": "e8328ee0936ebffe409bf0f22cf7d4f0d7be76e1",
+    "parent": "c5f5c9401cd0c152ed3ef6c34c1c103bcda26f8a",
+    "subject": "add a receipt formatter",
+    "tree": "09-receipt"
+  },
+  {
+    "branch": "main",
+    "committed_at": "2026-01-08T11:25:00+00:00",
+    "fault": null,
+    "hash": "4e173e43679bc21d673eb259d409188bf09ece6f",
+    "parent": "e8328ee0936ebffe409bf0f22cf7d4f0d7be76e1",
+    "subject": "give payments a little more time",
+    "tree": "10-payments-timing"
+  },
+  {
     "branch": "latency-spike",
     "committed_at": "2026-01-08T15:04:00+00:00",
     "fault": "latency_spike",
-    "hash": "8ea547ce57666546ad6f7159ff904a63dd65c072",
-    "parent": "dfe6c635314e67d64a08811f685b3430fd2ace75",
-    "subject": "rebuild the inventory index on each reserve",
+    "hash": "a3edb78641f743638593a6e04e47227d9f2960fe",
+    "parent": "4e173e43679bc21d673eb259d409188bf09ece6f",
+    "subject": "update inventory reservation path",
     "tree": "01-latency"
+  },
+  {
+    "branch": "latency-spike",
+    "committed_at": "2026-01-08T17:45:00+00:00",
+    "fault": null,
+    "hash": "a4ef1414501ee555e72a52cd552d7800e919e2d4",
+    "parent": "a3edb78641f743638593a6e04e47227d9f2960fe",
+    "subject": "add sku-4 for the spring catalog",
+    "tree": "11-latency-extra"
   },
   {
     "branch": "error-rate-spike",
     "committed_at": "2026-01-09T16:12:00+00:00",
     "fault": "error_rate_spike",
-    "hash": "0657ced9abda04ddb5331290ba632619c90cff45",
-    "parent": "dfe6c635314e67d64a08811f685b3430fd2ace75",
-    "subject": "invert the payments retry check",
+    "hash": "be5c8fe5e7d5b63154227218418c021223d0a7b3",
+    "parent": "4e173e43679bc21d673eb259d409188bf09ece6f",
+    "subject": "adjust processor response handling",
     "tree": "02-error-rate"
+  },
+  {
+    "branch": "error-rate-spike",
+    "committed_at": "2026-01-09T18:30:00+00:00",
+    "fault": null,
+    "hash": "d6f411812ded4fce4350479a8f2e8fbc82f8c5b6",
+    "parent": "be5c8fe5e7d5b63154227218418c021223d0a7b3",
+    "subject": "group processor codes for the dashboard",
+    "tree": "12-error-extra"
   },
   {
     "branch": "dependency-timeout",
     "committed_at": "2026-01-12T11:30:00+00:00",
     "fault": "dependency_timeout",
-    "hash": "6edf3d7a6239934020ce0e81ad4c62a414ec4afd",
-    "parent": "dfe6c635314e67d64a08811f685b3430fd2ace75",
-    "subject": "wait on a stuck payments connection",
+    "hash": "f69b1b1f9261371f286d3c6e35a2525fa8cef96b",
+    "parent": "4e173e43679bc21d673eb259d409188bf09ece6f",
+    "subject": "update the payments wait",
     "tree": "03-timeout"
+  },
+  {
+    "branch": "dependency-timeout",
+    "committed_at": "2026-01-12T15:10:00+00:00",
+    "fault": null,
+    "hash": "aeecb21989513a4e7709f57078f50af6ef7185be",
+    "parent": "f69b1b1f9261371f286d3c6e35a2525fa8cef96b",
+    "subject": "treat code 14 as a decline",
+    "tree": "13-timeout-extra"
   },
   {
     "branch": "bad-deploy",
     "committed_at": "2026-01-13T18:45:00+00:00",
     "fault": "bad_deploy",
-    "hash": "4c856a5de08a0eab1f94e9a8763c65ad0c2587ad",
-    "parent": "dfe6c635314e67d64a08811f685b3430fd2ace75",
-    "subject": "scale charge amounts by 100",
+    "hash": "917db5ceb9a4e5d73e5d46d25a291ea4898a6bea",
+    "parent": "4e173e43679bc21d673eb259d409188bf09ece6f",
+    "subject": "update charge amount handling",
     "tree": "04-bad-deploy"
+  },
+  {
+    "branch": "bad-deploy",
+    "committed_at": "2026-01-14T10:20:00+00:00",
+    "fault": null,
+    "hash": "4cb4ce4c8ef7d249a245c09e0a2a385a7d8f1f6b",
+    "parent": "917db5ceb9a4e5d73e5d46d25a291ea4898a6bea",
+    "subject": "expose the charge ceiling to the receipt",
+    "tree": "14-bad-extra"
   }
 ]

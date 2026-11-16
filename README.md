@@ -2,7 +2,9 @@
 
 Milestone 1 is a simulated checkout path: gateway, orders, inventory, and payments. It writes OpenTelemetry traces, logs, and metrics to local files and records which fault was injected. The simulator does not call a model.
 
-Milestone 2 is the log forensics agent. Given one run directory, it names the service and the onset of an error-rate or latency spike, and every claim cites a real log line plus a trace or span id. Later milestones add a code archaeologist, a runbook agent, and a citation-checked RCA report. Those agents are not in this tree.
+Milestone 2 is the log forensics agent. Given one run directory, it names the service and the onset of an error-rate or latency spike, and every claim cites a real log line plus a trace or span id.
+
+Milestone 3 is the code archaeologist. It takes that report and the sample service history, ranks the commits that touch the implicated service, and names the one most likely to have caused the incident. Every claim cites a commit that is in the history, and a file and line that exist at that commit. A runbook agent and the final RCA report are not in this tree.
 
 ## Run
 
@@ -36,6 +38,28 @@ Set `LOG_FORENSICS_LLM=off` (the default) to keep the deterministic summary. `LO
 
 `python -m log_forensics.eval` runs all four faults with seeds 1 through 5 (24 requests, 8 of them warmup) and prints, per fault, how often the service matches and how far the onset is from `started_at_unix_nano`. A case scores 1 when the service matches and the onset is exact. The score falls to 0 at 1000ms of error. A wrong service scores 0. A case passes when the service matches, the onset is within 1000ms, and the citations resolve. The command exits 1 if any case fails. It does not call a model unless `LOG_FORENSICS_LLM` is set.
 
+## Code archaeologist
+
+```bash
+python -m incident_sim --fault latency_spike --seed 1 --out runs/latency
+python -m log_forensics runs/latency --out runs/latency/forensics.json
+python -m code_archaeologist runs/latency/forensics.json
+python -m code_archaeologist runs/latency
+python -m code_archaeologist.eval
+```
+
+`python -m code_archaeologist` reads a log forensics report. A telemetry directory works too: the command runs log forensics on it first. It does not read `ground_truth.json`. The history defaults to `sample_history/shop.bundle`. `--history` points at another bundle or checkout.
+
+The ranker lists commits that change `{service}.py`. It does not read commit subjects. A latency or timeout report is matched to a `*_MS` constant the diff changes: the new value should be the incident duration, and the old value the baseline duration. An error-rate report is matched to the new log message. That message is lined up with an f-string in the service file. A commit that inverts the check guarding that error, or that changes a multiplier so the reported number newly fails the range check, ranks first. Other edits to the same file stay in the list at a lower score. `git blame` has to attribute the cited line to the commit. A line the commit did not touch is not used. Equal scores break toward the lower hash.
+
+The report is JSON (`schema_version` 1). `commit` is the top hash, `score` is its rank score, and `ranked` is every scored commit, highest first. Each ranked row names the file, line, and line text that produced the score. `claims` cites that line, and the parent line when the value changed. `summary` is prose from those fields. `tokens.input` and `tokens.output` are 0 unless a model rewrote the summary.
+
+The command checks every citation and every ranked row against the history. It exits 1 if a hash is not a commit, a file:line is not in that commit, or the citation text is not that line. A report that names a commit and has no claims does not resolve.
+
+Set `CODE_ARCHAEOLOGIST_LLM=off` (the default) to keep the deterministic summary. `CODE_ARCHAEOLOGIST_LLM=openai` sends a short digest of the ranked commits and claims, not the file bodies and not the commit subjects, to an OpenAI-compatible chat endpoint. `OPENAI_API_KEY` is required. `OPENAI_BASE_URL` and `OPENAI_MODEL` override the endpoint and the model (`gpt-4o-mini` by default). Token counts come from the response usage field.
+
+`python -m code_archaeologist.eval` runs all four faults with seeds 1 through 5 (24 requests, 8 of them warmup): simulate, then log forensics, then the archaeologist. Ground truth is read only after both agents return, and the file is wiped before the archaeologist runs. A case scores 1 when the top commit is `deployed_commit`. Top-3 counts a hit when that commit is one of the first three in `ranked`. The command prints both accuracies and exits 1 if any top commit is wrong or a citation does not resolve. It does not call a model unless `CODE_ARCHAEOLOGIST_LLM` is set.
+
 ## Output
 
 `runs/latency/` contains four files.
@@ -65,7 +89,9 @@ Healthy payments still declines codes `05` and `91`, so a few warmup checkouts f
 
 ## Sample history
 
-`sample_history/trees/` holds a full snapshot of the four modules for the baseline and for each fault. `sample_history/build_repo.py` commits the baseline on `main` and each fault on its own branch, with fixed author dates, then writes `shop.bundle` and `commits.json`. A scenario checks out the parent and the fault commit and calls that code. The ground-truth commit is the one `git blame` attributes the fault line to.
+`sample_history/trees/` holds a full snapshot of the four modules for each commit. `sample_history/build_repo.py` commits them with fixed author dates, then writes `shop.bundle` and `commits.json`. A scenario checks out the parent and the fault commit and calls that code. The ground-truth commit is the one `git blame` attributes the fault line to.
+
+The fault is not the only commit on its file. Main adds a catalog row, a higher charge ceiling, notes on orders and the gateway, a receipt helper, and a small payments timing change (`WORK_MS` 40 to 48) before any fault branch. Each fault branch then has one later commit that edits the same service and does not touch the fault line: another catalog row, a dashboard helper, an extra decline code, or a helper that returns the charge ceiling. Fault subjects describe the edit and do not name the fault. A search that keeps only the latest commit, or that greps subjects for the fault, picks a distractor. The archaeologist has to use the diff and blame. The parent of each fault commit is that healthy main tip, so the warmup still runs code that does not contain the fault.
 
 Rebuild after editing a snapshot:
 
