@@ -1,122 +1,49 @@
 # Multi-Agent Incident Responder
 
-Milestone 1 is a simulated checkout path: gateway, orders, inventory, and payments. It writes OpenTelemetry traces, logs, and metrics to local files and records which fault was injected. The simulator does not call a model.
+This repository simulates a checkout outage and writes a root-cause report where each factual sentence cites a log timestamp, a trace or span id, a commit and source line, or a runbook section. An orchestrator runs four stages in order: a simulator that writes OpenTelemetry traces, logs, and metrics; log forensics, which names the service and the onset; a code archaeologist, which ranks commits in a small git history; and a runbook stage, which selects mitigation steps from a catalog. A verifier rejects the report when a cited id does not match the underlying file. The default path is deterministic. It records zero tokens and does not call a model.
 
-Milestone 2 is the log forensics agent. Given one run directory, it names the service and the onset of an error-rate or latency spike, and every claim cites a real log line plus a trace or span id.
+## Architecture
 
-Milestone 3 is the code archaeologist. It takes that report and the sample service history, ranks the commits that touch the implicated service, and names the one most likely to have caused the incident. Every claim cites a commit that is in the history, and a file and line that exist at that commit.
+The checkout path is four modules, `gateway`, `orders`, `inventory`, and `payments`. The orchestrator calls the stages below in that order and writes `rca.json` and `rca.md`. The simulator also writes `ground_truth.json`. The later stages do not open it.
 
-Milestone 4 is the runbook agent. It takes the forensics report and the archaeologist report and chooses ordered mitigation steps from `runbooks/`. Every step cites the runbook section it came from and the upstream evidence that triggered it.
+```mermaid
+flowchart LR
+  sim[incident_sim] --> tel[telemetry files]
+  tel --> lf[log_forensics]
+  hist[shop.bundle] --> ca[code_archaeologist]
+  lf --> ca
+  books[runbooks] --> rb[runbook]
+  lf --> rb
+  ca --> rb
+  lf --> rca[rca.md]
+  ca --> rca
+  rb --> rca
+  rca --> ver[verifier]
+  tel --> ver
+  hist --> ver
+  books --> ver
+```
 
-Milestone 5 is the orchestrator. One command runs the simulator, log forensics, the code archaeologist, and the runbook agent, then writes the root-cause report. Every factual sentence cites a log timestamp or a trace or span id, a commit or a file and line, or a runbook section.
+## Quickstart
 
-## Run
+Python 3.11 or newer, and `git` on `PATH`. The scenario is loaded from `sample_history/shop.bundle`. Docker is not used.
 
 ```bash
+python3 -m venv .venv
+source .venv/bin/activate
 pip install -e '.[dev]'
-python -m incident_sim --fault latency_spike --seed 1 --out runs/latency
-pytest
+make demo
 ```
 
-Git is required, because the scenario loads service code from `sample_history/shop.bundle`. Docker is not.
+`make demo` runs `latency_spike` with seed 1, 24 requests, and 8 warmup requests. It writes `runs/demo/rca.md` and prints that path plus the verifier result. `runs/` is gitignored.
 
-`--requests` checkouts are served one after another. The first `--warmup` of them run the parent commit. The rest run the fault commit. `--seed` fixes trace ids and which processor response codes show up. Time is simulated, starting at 2026-01-15 15:00:00 UTC, so a slow fault does not make the process wait.
+![Last frame of make demo](docs/demo.svg)
 
-## Log forensics
+`docs/demo.cast` is an asciinema recording of the same command. The image is the last frame.
 
-```bash
-python -m incident_sim --fault latency_spike --seed 1 --out runs/latency
-python -m log_forensics runs/latency
-python -m log_forensics.eval
-```
+## Example
 
-`python -m log_forensics` reads `traces.jsonl` and `logs.jsonl`. It does not read `ground_truth.json`. Metrics are scraped twice per run, so they only place a change inside a wide window. Spans and logs are one record per request, which is what the onset time needs.
-
-The agent compares the requests before a candidate onset with the requests after it. Latency is the service's own span time, with child spans removed: a slow `reserve` also stretches orders and gateway, and the own-time view is what points at inventory. An error spike is a log message that is absent in the baseline window and common afterward, and only when that service fails most of the later requests. Steady payment declines (processor codes `05` and `91`) are not an incident. The search looks for one change that lasts until the end of the run, so a short blip that recovers can be missed.
-
-The report is JSON (`schema_version` 1). `incident`, `service`, `kind` (`latency`, `timeout`, or `error_rate`), and `started_at_unix_nano` are the fields a later agent can branch on. `stats` holds the before/after duration or error rate and, for a new failure mode, the log message. `claims` is the cited evidence. `summary` is prose derived from those fields. `tokens.input` and `tokens.output` are 0 unless a model rewrote the summary.
-
-A citation names `traces.jsonl` or `logs.jsonl`, a 1-based line, `timestamp_unix_nano`, and a `trace_id` or `span_id`. `python -m log_forensics` checks every citation against the file and exits 1 if any claim does not resolve. A claim with no log citation does not resolve. A healthy directory, or one with too few requests to form both windows, reports `incident: false` and no claims.
-
-Set `LOG_FORENSICS_LLM=off` (the default) to keep the deterministic summary. `LOG_FORENSICS_LLM=openai` sends the evidence digest, not the raw files, to an OpenAI-compatible chat endpoint. `OPENAI_API_KEY` is required. `OPENAI_BASE_URL` and `OPENAI_MODEL` override the endpoint and the model (`gpt-4o-mini` by default). Token counts come from the response usage field.
-
-`python -m log_forensics.eval` runs all four faults with seeds 1 through 5 (24 requests, 8 of them warmup) and prints, per fault, how often the service matches and how far the onset is from `started_at_unix_nano`. A case scores 1 when the service matches and the onset is exact. The score falls to 0 at 1000ms of error. A wrong service scores 0. A case passes when the service matches, the onset is within 1000ms, and the citations resolve. The command exits 1 if any case fails. It does not call a model unless `LOG_FORENSICS_LLM` is set.
-
-## Code archaeologist
-
-```bash
-python -m incident_sim --fault latency_spike --seed 1 --out runs/latency
-python -m log_forensics runs/latency --out runs/latency/forensics.json
-python -m code_archaeologist runs/latency/forensics.json
-python -m code_archaeologist runs/latency
-python -m code_archaeologist.eval
-```
-
-`python -m code_archaeologist` reads a log forensics report. A telemetry directory works too: the command runs log forensics on it first. It does not read `ground_truth.json`. The history defaults to `sample_history/shop.bundle`. `--history` points at another bundle or checkout.
-
-The ranker lists commits that change `{service}.py`. It does not read commit subjects. A latency or timeout report is matched to a `*_MS` constant the diff changes: the new value should be the incident duration, and the old value the baseline duration. An error-rate report is matched to the new log message. That message is lined up with an f-string in the service file. A commit that inverts the check guarding that error, or that changes a multiplier so the reported number newly fails the range check, ranks first. Other edits to the same file stay in the list at a lower score. `git blame` has to attribute the cited line to the commit. A line the commit did not touch is not used. Equal scores break toward the lower hash.
-
-The report is JSON (`schema_version` 1). `commit` is the top hash, `score` is its rank score, and `ranked` is every scored commit, highest first. Each ranked row names the file, line, and line text that produced the score. `claims` cites that line, and the parent line when the value changed. `summary` is prose from those fields. `tokens.input` and `tokens.output` are 0 unless a model rewrote the summary.
-
-The command checks every citation and every ranked row against the history. It exits 1 if a hash is not a commit, a file:line is not in that commit, or the citation text is not that line. A report that names a commit and has no claims does not resolve.
-
-Set `CODE_ARCHAEOLOGIST_LLM=off` (the default) to keep the deterministic summary. `CODE_ARCHAEOLOGIST_LLM=openai` sends a short digest of the ranked commits and claims, not the file bodies and not the commit subjects, to an OpenAI-compatible chat endpoint. `OPENAI_API_KEY` is required. `OPENAI_BASE_URL` and `OPENAI_MODEL` override the endpoint and the model (`gpt-4o-mini` by default). Token counts come from the response usage field.
-
-`python -m code_archaeologist.eval` runs all four faults with seeds 1 through 5 (24 requests, 8 of them warmup): simulate, then log forensics, then the archaeologist. Ground truth is read only after both agents return, and the file is wiped before the archaeologist runs. A case scores 1 when the top commit is `deployed_commit`. Top-3 counts a hit when that commit is one of the first three in `ranked`. The command prints both accuracies and exits 1 if any top commit is wrong or a citation does not resolve. It does not call a model unless `CODE_ARCHAEOLOGIST_LLM` is set.
-
-## Runbook
-
-```bash
-python -m incident_sim --fault latency_spike --seed 1 --out runs/latency
-python -m log_forensics runs/latency --out runs/latency/forensics.json
-python -m code_archaeologist runs/latency/forensics.json --out runs/latency/archaeology.json
-python -m runbook runs/latency/forensics.json runs/latency/archaeology.json
-python -m runbook runs/latency
-python -m runbook.eval
-```
-
-`python -m runbook` reads the two reports. A telemetry directory works too: the command runs log forensics and the archaeologist first. It does not read `ground_truth.json`. Runbooks default to `runbooks/`. `--runbooks` points at another directory.
-
-Matching compares the forensics kind with the shape of the line the archaeologist cited. A `*_MS` constant is a duration. A `*_TIMEOUT_MS` constant is a caller deadline, and it is not treated as a duration. An `if` that contains `not` is an inverted check. Any other `NAME = integer` is config. No commit is an unexplained error. The fault name and the commit subject are not inputs. Two payments error-rate incidents therefore take different runbooks: the inverted processor check rolls the file back, and `CURRENCY_SCALE` is put back on that one line.
-
-| Runbook | When it matches | What it does |
-| --- | --- | --- |
-| `rollback-latency` | latency, duration constant | Deploy the parent copy of the implicated file. |
-| `rollback-timeout` | timeout, duration constant | Roll that file back, then set `PAYMENTS_TIMEOUT_MS` to the dependency duration. |
-| `rollback-check` | error rate, inverted `if` | Deploy the parent copy of the implicated file. |
-| `revert-config` | error rate, config constant | Restore that constant to the parent value. Leave the rest of the file. |
-| `raise-timeout` | timeout, caller deadline | Raise the cited deadline to the dependency duration. |
-| `shed-load` | error rate, no commit | Stop new checkouts. No file changes. |
-
-The report is JSON (`schema_version` 1). `matched` is false when no runbook fits, and `steps` is empty. A match names `runbook` and lists `steps` in file order. Each step has `action`, `text`, `target`, and `citations`. A citation is either the runbook file and section, a forensics claim index plus `timestamp_unix_nano`, or an archaeologist claim index plus `commit`. `summary` is prose from those fields. `tokens.input` and `tokens.output` are 0 unless a model rewrote the summary.
-
-The command checks every step. The section has to be a heading of the selected runbook, and it has to be the section for that step. The timestamp has to appear on that forensics claim. The commit has to appear on that archaeologist claim. Rollback and config revert have to cite both the implicated commit and the parent they deploy. A matched report with no steps does not resolve. The command exits 1 when any of those fail.
-
-Set `RUNBOOK_LLM=off` (the default) to keep the deterministic summary. `RUNBOOK_LLM=openai` sends a short digest of the runbook id and each step's action, section, and file. It does not send the runbook prose, the service source, or the telemetry. `OPENAI_API_KEY` is required. `OPENAI_BASE_URL` and `OPENAI_MODEL` override the endpoint and the model (`gpt-4o-mini` by default). Token counts come from the response usage field.
-
-`python -m runbook.eval` runs all four faults with seeds 1 through 5 (24 requests, 8 of them warmup): simulate, log forensics, the archaeologist, then the runbook agent. Ground truth is deleted before the agents run. For each case the eval checks out the implicated commit, applies the steps, and serves the warmup from the parent and the rest from the patched tree. Log forensics runs again. A case scores 1 when that re-run reports no incident and every citation resolves. The command prints the mitigation success rate and exits 1 if any case fails. It does not call a model unless `RUNBOOK_LLM` is set.
-
-`dependency_timeout` matches `rollback-timeout`, not `raise-timeout`, because the cited line is `WORK_MS` on payments. Raising `PAYMENTS_TIMEOUT_MS` on its own leaves payments at 2000ms, so forensics still reports a latency spike. The rollback is the step that removes the fault. The timeout increase is the second step. `shed-load` does not change service code, and these four faults do not select it.
-
-## Orchestrator
-
-```bash
-python -m orchestrator --fault latency_spike --seed 1 --out runs/latency
-python -m orchestrator.verify runs/latency/rca.json --run runs/latency
-python -m orchestrator.eval
-```
-
-`python -m orchestrator` runs the simulator, log forensics, the code archaeologist, and the runbook agent. It writes `rca.json` and `rca.md` in the scenario directory. It does not read `ground_truth.json`. The Markdown is the same sentences as the JSON.
-
-The report has six sections: summary, impact, timeline, root cause, evidence, and mitigation. Each claim is one sentence. The sentence names the source it cites: a log timestamp or a trace or span id, a commit or a `file:line`, or a runbook section heading. `tokens` sums the usage fields from each agent, with a total. A field is 0 unless that stage called a model and the response included a usage count. The orchestrator does not estimate tokens from the length of the prompt.
-
-`python -m orchestrator` checks the report before it exits. `python -m orchestrator.verify` checks a saved report the same way. Either command exits 1 if a sentence has no citation, if a sentence names an id its citations do not carry, or if a citation does not resolve. A log citation has to match that line of `traces.jsonl` or `logs.jsonl`. A commit citation has to be a commit in the history, and the file and line have to match when they are present. A runbook citation has to be a `##` heading in the cited file.
-
-Set `ORCHESTRATOR_LLM=off` (the default) to keep the deterministic sentences. `ORCHESTRATOR_LLM=openai` rewrites the sentences, and the verifier runs on the rewritten text. The model sees the sentences, not the telemetry and not the service source. `OPENAI_API_KEY` is required. `OPENAI_BASE_URL` and `OPENAI_MODEL` override the endpoint and the model (`gpt-4o-mini` by default). A sentence the model adds without a citation fails the verifier. Token counts for that call come from the response usage field.
-
-`python -m orchestrator.eval` runs all four faults with seeds 1 through 5 (24 requests, 8 of them warmup). Ground truth is deleted before the agents run. A case scores 1 when the cited commit is `deployed_commit`, the service matches, a replay of the mitigation steps leaves no incident, and the citations resolve. The command prints root cause, mitigation cleared, citations, runtime, and tokens, per case and in total. It exits 1 if any case fails. It does not call a model unless an `*_LLM` variable is set.
-
-`examples/latency_spike/` is the report for `latency_spike` with seed 1, 24 requests, and 8 warmup requests. The summary is:
+`examples/latency_spike/rca.md` is that same case, committed so the report can be read without running anything. `make demo` reproduces it. The summary is:
 
 > Inventory latency is on trace be6521cc3e2434e37af027bc08d6af57 at log timestamp 1768489202134000000.
 >
@@ -124,41 +51,62 @@ Set `ORCHESTRATOR_LLM=off` (the default) to keep the deterministic sentences. `O
 >
 > Mitigation starts with the runbook section Roll back the slow commit.
 
-## Output
+The root-cause section names the assignment:
 
-`runs/latency/` contains four files.
-
-`traces.jsonl` is one span per line. A checkout is five spans: `POST /checkout` (gateway), `create_order` (orders), `reserve` (inventory), and `POST /charge` as a client span on orders plus a server span on payments. When payments runs past the orders deadline, the client span ends in error at that deadline and the payments span keeps going until `WORK_MS`.
-
-`logs.jsonl` is one log per line. Each line has `timestamp_unix_nano`, `trace_id`, and `span_id`. The timestamp falls inside that span.
-
-`metrics.jsonl` is one point per line, scraped once at the end of the warmup and once at the end of the run. Counters are named `requests`. Histograms are named `duration_ms`.
-
-`ground_truth.json` names the fault, the service and file, the deployed commit, its parent, and `started_at_unix_nano` (the start of the first checkout served by the fault commit).
-
-Span durations come from `WORK_MS` in the loaded service file. The functions do run; they just do not sleep.
+> Commit a3edb78641f743638593a6e04e47227d9f2960fe sets `WORK_MS = 750` at inventory.py:3.
 
 ## Faults
 
-`python -m incident_sim --list-faults` prints this list.
-
-| Fault | Service | What changes |
+| Fault | Service | What the commit changes |
 | --- | --- | --- |
-| `latency_spike` | inventory | `reserve` rebuilds the catalog index and `WORK_MS` becomes 750. |
-| `error_rate_spike` | payments | The retry check is inverted, so approval code `00` fails and retryable code `91` does not. |
-| `dependency_timeout` | payments | Charge blocks for 2000ms. Orders gives up at `PAYMENTS_TIMEOUT_MS` (800). |
+| `latency_spike` | inventory | `reserve` rebuilds a catalog index and `WORK_MS` goes from 12 to 750. |
+| `error_rate_spike` | payments | The processor check is inverted, so approval code `00` fails. |
+| `dependency_timeout` | payments | Charge waits 2000ms. Orders stops at its 800ms deadline. |
 | `bad_deploy` | payments | `CURRENCY_SCALE` becomes 100, so an 8000 cent charge is rejected as 800000. |
 
-Healthy payments still declines codes `05` and `91`, so a few warmup checkouts fail. The error-rate fault is the later jump, when code `00` starts failing.
+Healthy payments still declines processor codes `05` and `91`. That baseline is not treated as an incident. The error-rate fault is the later jump, when code `00` starts failing.
 
-## Sample history
+## Results
 
-`sample_history/trees/` holds a full snapshot of the four modules for each commit. `sample_history/build_repo.py` commits them with fixed author dates, then writes `shop.bundle` and `commits.json`. A scenario checks out the parent and the fault commit and calls that code. The ground-truth commit is the one `git blame` attributes the fault line to.
+`python -m orchestrator.eval` runs the four faults with seeds 1 through 5, 24 requests, and 8 warmup requests. Ground truth is deleted before the stages run. A case scores 1 when the cited commit is the deployed commit, the service matches, replaying the mitigation leaves no incident, and the citations resolve. Any miss scores 0.
 
-The fault is not the only commit on its file. Main adds a catalog row, a higher charge ceiling, notes on orders and the gateway, a receipt helper, and a small payments timing change (`WORK_MS` 40 to 48) before any fault branch. Each fault branch then has one later commit that edits the same service and does not touch the fault line: another catalog row, a dashboard helper, an extra decline code, or a helper that returns the charge ceiling. Fault subjects describe the edit and do not name the fault. A search that keeps only the latest commit, or that greps subjects for the fault, picks a distractor. The archaeologist has to use the diff and blame. The parent of each fault commit is that healthy main tip, so the warmup still runs code that does not contain the fault.
+| Fault | Runbook | Root cause | Cleared | Citations | Mean score |
+| --- | --- | --- | ---: | ---: | ---: |
+| `bad_deploy` | `revert-config` | 5/5 | 5/5 | 5/5 | 1.000 |
+| `dependency_timeout` | `rollback-timeout` | 5/5 | 5/5 | 5/5 | 1.000 |
+| `error_rate_spike` | `rollback-check` | 5/5 | 5/5 | 5/5 | 1.000 |
+| `latency_spike` | `rollback-latency` | 5/5 | 5/5 | 5/5 | 1.000 |
 
-Rebuild after editing a snapshot:
+20 of 20 cases passed. Wall clock was 1.869 seconds. The run recorded 0 input tokens and 0 output tokens, including 0/0 on forensics, the archaeologist, the runbook stage, and the orchestrator.
+
+## Tokens and cost
+
+Deterministic mode is the default. Leave `LOG_FORENSICS_LLM`, `CODE_ARCHAEOLOGIST_LLM`, `RUNBOOK_LLM`, and `ORCHESTRATOR_LLM` unset, or set them to `off`. Each stage then writes `tokens.input` and `tokens.output` as 0. The orchestrator adds those fields up. It does not estimate tokens from the length of a prompt. The eval above is that mode: 0 input tokens and 0 output tokens, so the model cost of the reported run is zero.
+
+Setting any of those variables to `openai` sends a short digest to an OpenAI-compatible chat endpoint. The default model is `gpt-4o-mini`, and `OPENAI_MODEL` overrides it. `OPENAI_API_KEY` is required. Usage is copied from the response. That path was not run here, and this page does not state a price for it.
+
+## Design decisions
+
+- The stages are functions called in a fixed order. Each one returns JSON, and the next stage reads that JSON. The orchestrator is the caller, not a planner.
+- The simulator writes `ground_truth.json` next to the telemetry. The stages never open it. The eval deletes the file before they run and uses a saved copy only when scoring.
+- Onset comes from one span and one log per request. Latency is the service's own span time with child spans removed, so a slow `reserve` stays on inventory. Metrics are scraped twice per run, once after warmup and once at the end. That window is too wide for an onset.
+- The archaeologist ranks the diff, and `git blame` has to attribute the cited line to that commit. Commit subjects are not loaded. The sample history has later commits on the same file that leave the fault line alone, and the fault subjects describe the edit without naming the fault.
+- Runbook selection compares the forensics kind with the shape of the cited line. The fault name is not an input. The inverted processor check and the bad `CURRENCY_SCALE` are both payments error-rate incidents, and they select `rollback-check` and `revert-config`.
+- Time starts at 2026-01-15 15:00:00 UTC. Each checkout is served, the clock advances by the span durations plus a 100ms gap, and the next checkout starts. The service functions return a duration from `WORK_MS`. They do not sleep.
+
+## Limitations
+
+- The faults are four synthetic commits in a four-file checkout service. They are not incidents from a production system.
+- The clock is simulated, and the checkouts run one after another. There is no overlap and no clock skew. A slow fault does not take wall-clock time.
+- The archaeologist explains three diff shapes: a changed `*_MS` constant scored against the before and after durations, an inverted `if` that guards a new error log, and a changed multiplier that makes a reported amount fail a range check it used to pass. Other edits on the file stay in the ranking at a lower score.
+- The verifier checks that a trace id, span id, timestamp, commit, `file:line`, or runbook heading in a sentence appears in a citation, and that the citation matches the file. A number written next to those ids is not part of the check. The impact section states a millisecond duration beside a span id, and a wrong duration on a real span id still passes.
+- Forensics looks for one change that continues to the end of the run. A spike that recovers before the run ends can be missed.
+
+## Checks
 
 ```bash
-python sample_history/build_repo.py
+pytest
+python -m orchestrator.eval
 ```
+
+GitHub Actions runs both on push and on pull request. The individual stages are `python -m incident_sim`, `python -m log_forensics`, `python -m code_archaeologist`, `python -m runbook`, and `python -m orchestrator.verify`.

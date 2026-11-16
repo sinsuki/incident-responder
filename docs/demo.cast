@@ -1,0 +1,3 @@
+{"version": 2, "width": 110, "height": 13, "timestamp": 1794833945, "env": {"SHELL": "/bin/bash", "TERM": "xterm-256color"}}
+[0.003281, "o", "python scripts/demo.py\r\n"]
+[0.417357, "o", "fault latency_spike\r\nseed 1\r\n\r\nInventory latency is on trace be6521cc3e2434e37af027bc08d6af57 at log timestamp 1768489202134000000.\r\n\r\nThe implicated line is inventory.py:3 in commit a3edb78641f743638593a6e04e47227d9f2960fe.\r\n\r\nMitigation starts with the runbook section Roll back the slow commit.\r\n\r\nreport runs/demo/rca.md\r\nverify ok\r\n"]
