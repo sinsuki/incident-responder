@@ -37,6 +37,8 @@ make demo
 
 `make demo` runs `latency_spike` with seed 1, 24 requests, and 8 warmup requests. It writes `runs/demo/rca.md` and prints that path plus the verifier result. `runs/` is gitignored.
 
+These commands were run from a clean clone on Python 3.12.3.
+
 ![Last frame of make demo](docs/demo.svg)
 
 `docs/demo.cast` is an asciinema recording of the same command. The image is the last frame.
@@ -77,7 +79,7 @@ Healthy payments still declines processor codes `05` and `91`. That baseline is 
 | `error_rate_spike` | `rollback-check` | 5/5 | 5/5 | 5/5 | 1.000 |
 | `latency_spike` | `rollback-latency` | 5/5 | 5/5 | 5/5 | 1.000 |
 
-20 of 20 cases passed. Wall clock was 1.869 seconds. The run recorded 0 input tokens and 0 output tokens, including 0/0 on forensics, the archaeologist, the runbook stage, and the orchestrator.
+On the clean clone above, 20 of 20 cases passed. Wall clock was 1.985 seconds. The run recorded 0 input tokens and 0 output tokens, including 0/0 on forensics, the archaeologist, the runbook stage, and the orchestrator.
 
 ## Tokens and cost
 
@@ -87,7 +89,7 @@ Setting any of those variables to `openai` sends a short digest to an OpenAI-com
 
 ## Design decisions
 
-- The stages are functions called in a fixed order. Each one returns JSON, and the next stage reads that JSON. The orchestrator is the caller, not a planner.
+- The stages are functions called in a fixed order. Each one returns JSON, and the next stage reads that JSON. The orchestrator is the caller.
 - The simulator writes `ground_truth.json` next to the telemetry. The stages never open it. The eval deletes the file before they run and uses a saved copy only when scoring.
 - Onset comes from one span and one log per request. Latency is the service's own span time with child spans removed, so a slow `reserve` stays on inventory. Metrics are scraped twice per run, once after warmup and once at the end. That window is too wide for an onset.
 - The archaeologist ranks the diff, and `git blame` has to attribute the cited line to that commit. Commit subjects are not loaded. The sample history has later commits on the same file that leave the fault line alone, and the fault subjects describe the edit without naming the fault.
