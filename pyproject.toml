@@ -1,7 +1,7 @@
 [project]
 name = "incident-sim"
 version = "0.1.0"
-description = "Simulated checkout services, log forensics, a code archaeologist, and a runbook agent."
+description = "Simulated checkout services, log forensics, a code archaeologist, a runbook agent, and a cited root-cause report."
 requires-python = ">=3.11"
 dependencies = [
     "opentelemetry-api==1.45.2",
@@ -16,13 +16,14 @@ incident-sim = "incident_sim.cli:main"
 log-forensics = "log_forensics.cli:main"
 code-archaeologist = "code_archaeologist.cli:main"
 runbook = "runbook.cli:main"
+orchestrator = "orchestrator.cli:main"
 
 [build-system]
 requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
-include = ["incident_sim*", "log_forensics*", "code_archaeologist*", "runbook*"]
+include = ["incident_sim*", "log_forensics*", "code_archaeologist*", "runbook*", "orchestrator*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

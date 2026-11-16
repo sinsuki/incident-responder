@@ -6,7 +6,9 @@ Milestone 2 is the log forensics agent. Given one run directory, it names the se
 
 Milestone 3 is the code archaeologist. It takes that report and the sample service history, ranks the commits that touch the implicated service, and names the one most likely to have caused the incident. Every claim cites a commit that is in the history, and a file and line that exist at that commit.
 
-Milestone 4 is the runbook agent. It takes the forensics report and the archaeologist report and chooses ordered mitigation steps from `runbooks/`. Every step cites the runbook section it came from and the upstream evidence that triggered it. The final RCA report is not in this tree.
+Milestone 4 is the runbook agent. It takes the forensics report and the archaeologist report and chooses ordered mitigation steps from `runbooks/`. Every step cites the runbook section it came from and the upstream evidence that triggered it.
+
+Milestone 5 is the orchestrator. One command runs the simulator, log forensics, the code archaeologist, and the runbook agent, then writes the root-cause report. Every factual sentence cites a log timestamp or a trace or span id, a commit or a file and line, or a runbook section.
 
 ## Run
 
@@ -95,6 +97,32 @@ Set `RUNBOOK_LLM=off` (the default) to keep the deterministic summary. `RUNBOOK_
 `python -m runbook.eval` runs all four faults with seeds 1 through 5 (24 requests, 8 of them warmup): simulate, log forensics, the archaeologist, then the runbook agent. Ground truth is deleted before the agents run. For each case the eval checks out the implicated commit, applies the steps, and serves the warmup from the parent and the rest from the patched tree. Log forensics runs again. A case scores 1 when that re-run reports no incident and every citation resolves. The command prints the mitigation success rate and exits 1 if any case fails. It does not call a model unless `RUNBOOK_LLM` is set.
 
 `dependency_timeout` matches `rollback-timeout`, not `raise-timeout`, because the cited line is `WORK_MS` on payments. Raising `PAYMENTS_TIMEOUT_MS` on its own leaves payments at 2000ms, so forensics still reports a latency spike. The rollback is the step that removes the fault. The timeout increase is the second step. `shed-load` does not change service code, and these four faults do not select it.
+
+## Orchestrator
+
+```bash
+python -m orchestrator --fault latency_spike --seed 1 --out runs/latency
+python -m orchestrator.verify runs/latency/rca.json --run runs/latency
+python -m orchestrator.eval
+```
+
+`python -m orchestrator` runs the simulator, log forensics, the code archaeologist, and the runbook agent. It writes `rca.json` and `rca.md` in the scenario directory. It does not read `ground_truth.json`. The Markdown is the same sentences as the JSON.
+
+The report has six sections: summary, impact, timeline, root cause, evidence, and mitigation. Each claim is one sentence. The sentence names the source it cites: a log timestamp or a trace or span id, a commit or a `file:line`, or a runbook section heading. `tokens` sums the usage fields from each agent, with a total. A field is 0 unless that stage called a model and the response included a usage count. The orchestrator does not estimate tokens from the length of the prompt.
+
+`python -m orchestrator` checks the report before it exits. `python -m orchestrator.verify` checks a saved report the same way. Either command exits 1 if a sentence has no citation, if a sentence names an id its citations do not carry, or if a citation does not resolve. A log citation has to match that line of `traces.jsonl` or `logs.jsonl`. A commit citation has to be a commit in the history, and the file and line have to match when they are present. A runbook citation has to be a `##` heading in the cited file.
+
+Set `ORCHESTRATOR_LLM=off` (the default) to keep the deterministic sentences. `ORCHESTRATOR_LLM=openai` rewrites the sentences, and the verifier runs on the rewritten text. The model sees the sentences, not the telemetry and not the service source. `OPENAI_API_KEY` is required. `OPENAI_BASE_URL` and `OPENAI_MODEL` override the endpoint and the model (`gpt-4o-mini` by default). A sentence the model adds without a citation fails the verifier. Token counts for that call come from the response usage field.
+
+`python -m orchestrator.eval` runs all four faults with seeds 1 through 5 (24 requests, 8 of them warmup). Ground truth is deleted before the agents run. A case scores 1 when the cited commit is `deployed_commit`, the service matches, a replay of the mitigation steps leaves no incident, and the citations resolve. The command prints root cause, mitigation cleared, citations, runtime, and tokens, per case and in total. It exits 1 if any case fails. It does not call a model unless an `*_LLM` variable is set.
+
+`examples/latency_spike/` is the report for `latency_spike` with seed 1, 24 requests, and 8 warmup requests. The summary is:
+
+> Inventory latency is on trace be6521cc3e2434e37af027bc08d6af57 at log timestamp 1768489202134000000.
+>
+> The implicated line is inventory.py:3 in commit a3edb78641f743638593a6e04e47227d9f2960fe.
+>
+> Mitigation starts with the runbook section Roll back the slow commit.
 
 ## Output
 
