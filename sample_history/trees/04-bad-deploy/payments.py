@@ -1,8 +1,9 @@
 """Card payments."""
 
-WORK_MS = 40
+# The processor answers a little slower on the new path. Still well under the orders deadline.
+WORK_MS = 48
 CURRENCY_SCALE = 100
-MAX_CHARGE_CENTS = 500_000
+MAX_CHARGE_CENTS = 750_000
 RETRYABLE = {"91", "96"}
 DECLINED = {"05", "51"}
 
@@ -22,3 +23,9 @@ def _processor_failed(response_code):
     if response_code in RETRYABLE:
         return True
     return False
+
+
+def format_receipt(order_id, amount_cents):
+    # Returned to the caller for the email receipt. Charge does not use it.
+    dollars = amount_cents / 100
+    return f"{order_id} ${dollars:.2f}"

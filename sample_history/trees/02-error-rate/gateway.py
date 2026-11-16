@@ -1,4 +1,7 @@
-"""Checkout entrypoint."""
+"""Checkout entrypoint.
+
+The gateway accepts the cart and hands it to orders.
+"""
 
 
 def checkout(order_id, sku, qty):
